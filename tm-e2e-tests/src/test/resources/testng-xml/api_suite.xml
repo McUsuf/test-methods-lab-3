@@ -1,8 +1,30 @@
 <!DOCTYPE suite SYSTEM "http://testng.org/testng-1.0.dtd">
-<suite verbose="1" name="API Tests" annotations="JDK" parallel="tests">
-    <test name="AuthTest">
+<suite verbose="1" name="API Tests" annotations="JDK">
+    <test name="AuthenticationTest">
         <classes>
-            <class name="org.nsu.fit.tests.api.AuthTest" />
+            <class name="org.nsu.fit.tests.api.auth.AuthAdminTest" />
+            <class name="org.nsu.fit.tests.api.auth.AuthCustomerTest"/>
+        </classes>
+    </test>
+    <test name="CustomerProcessingTest">
+        <classes>
+            <class name="org.nsu.fit.tests.api.customer.CreateCustomerTest"/>
+            <class name="org.nsu.fit.tests.api.customer.GetCustomerTest"/>
+            <class name="org.nsu.fit.tests.api.customer.TopUpBalanceTest"/>
+            <class name="org.nsu.fit.tests.api.customer.DeleteCustomerTest"/>
+        </classes>
+    </test>
+    <test name="PlanProcessingTest">
+        <classes>
+            <class name="org.nsu.fit.tests.api.plan.CreatePlanTest"/>
+            <class name="org.nsu.fit.tests.api.plan.DeletePlanClass"/>
+            <class name="org.nsu.fit.tests.api.plan.GetAvailablePlanTest"/>
+        </classes>
+    </test>
+    <test name="SubscriptionProcessingTest">
+        <classes>
+            <class name="org.nsu.fit.tests.api.sub.CreateSubTest"/>
+            <class name="org.nsu.fit.tests.api.sub.DeleteSubTest"/>
         </classes>
     </test>
 </suite>

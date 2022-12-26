@@ -1,25 +1,26 @@
 package org.nsu.fit.services.rest;
 
+import com.github.javafaker.Faker;
 import org.glassfish.jersey.client.ClientConfig;
 import org.nsu.fit.services.log.Logger;
-import org.nsu.fit.services.rest.data.AccountTokenPojo;
-import org.nsu.fit.services.rest.data.ContactPojo;
-import org.nsu.fit.services.rest.data.CredentialsPojo;
-import org.nsu.fit.services.rest.data.CustomerPojo;
+import org.nsu.fit.services.rest.data.*;
 import org.nsu.fit.shared.JsonMapper;
 
-import javax.ws.rs.client.Client;
-import javax.ws.rs.client.ClientBuilder;
-import javax.ws.rs.client.ClientRequestContext;
-import javax.ws.rs.client.ClientRequestFilter;
-import javax.ws.rs.client.Entity;
-import javax.ws.rs.client.Invocation;
+import javax.ws.rs.client.*;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.MultivaluedMap;
+import javax.ws.rs.core.Response;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class RestClient {
     // Note: change url if you want to use the docker compose.
-    private static final String REST_URI = "http://localhost:8080/tm-backend/rest";
-    //private static final String REST_URI = "http://localhost:8089/tm-backend/rest";
+    //private static final String REST_URI = "http://localhost:8080/tm-backend/rest";
+    private static final String REST_URI = "http://localhost:8089/tm-backend/rest";
 
     private final static Client client = ClientBuilder.newClient(new ClientConfig().register(RestClientLogFilter.class));
 
@@ -37,17 +38,88 @@ public class RestClient {
 
         // Лабораторная 3: Добавить обработку генерацию фейковых имен, фамилий и логинов.
         // * Исследовать этот вопрос более детально, возможно прикрутить специальную библиотеку для генерации фейковых данных.
-        contactPojo.firstName = "John";
-        contactPojo.lastName = "Wick";
-        contactPojo.login = "john_wick@example.com";
-        contactPojo.pass = "strongpass";
+        Faker faker = new Faker();
+        contactPojo.firstName = faker.name().firstName();
+        contactPojo.lastName = faker.name().lastName();
+        contactPojo.login = faker.internet().emailAddress();
+        contactPojo.pass = faker.internet().password(7, 11);
 
         return post("customers", JsonMapper.toJson(contactPojo, true), CustomerPojo.class, accountToken);
+    }
+
+    public ContactPojo meAsAdmin(AccountTokenPojo accountToken) {
+        return get("me", "", ContactPojo.class, accountToken, null);
+    }
+
+    public CustomerPojo meAsCustomer(AccountTokenPojo accountToken) {
+        return get("me", "", CustomerPojo.class, accountToken, null);
+    }
+
+    public CustomerPojo createCustomer(CustomerPojo customerPojo, AccountTokenPojo adminToken) {
+        return post("customers", JsonMapper.toJson(customerPojo, true), CustomerPojo.class, adminToken);
+    }
+
+    public void deleteCustomer(CustomerPojo customerPojo, AccountTokenPojo adminToken) {
+        delete("customers/" + customerPojo.id, "", void.class, adminToken);
+    }
+
+    public List<CustomerPojo> getCustomers(AccountTokenPojo adminToken, String customerLogin) {
+        Map<String, String> queryParams = new HashMap<>();
+        queryParams.put("login", customerLogin);
+
+        return Arrays.stream(Objects.requireNonNull(get("customers", "", CustomerPojo[].class, adminToken, queryParams))).collect(Collectors.toList());
+    }
+
+    public void topUpBalance(AccountTokenPojo accountTokenPojo, int money) {
+        MoneyPojo moneyPojo = new MoneyPojo();
+        moneyPojo.money = money;
+
+        post("customers/top_up_balance", JsonMapper.toJson(moneyPojo, true), void.class, accountTokenPojo);
+    }
+
+    public PlanPojo createPlan(AccountTokenPojo accountToken, PlanPojo planPojo) {
+        return post("plans", JsonMapper.toJson(planPojo, true), PlanPojo.class, accountToken);
+    }
+
+    public List<PlanPojo> getPlans(AccountTokenPojo adminToken) {
+        Map<String, String> queryParams = new HashMap<>();
+        queryParams.put("customer_id", adminToken.id.toString());
+        return Arrays.stream(Objects.requireNonNull(get("plans", "", PlanPojo[].class, adminToken, queryParams))).collect(Collectors.toList());
+    }
+
+    public void deletePlan(AccountTokenPojo accountToken, PlanPojo planPojo) {
+        delete("plans/" + planPojo.id, "", void.class, accountToken);
+    }
+
+    public SubscriptionPojo createSubscription(AccountTokenPojo accountToken, SubscriptionPojo subscriptionPojo) {
+        return post("subscriptions", JsonMapper.toJson(subscriptionPojo, true), SubscriptionPojo.class, accountToken);
+    }
+
+    public void deleteSubscription(AccountTokenPojo accountToken, SubscriptionPojo subscriptionPojo) {
+        delete("subscriptions/" + subscriptionPojo.id, "", void.class, accountToken);
+    }
+
+    public List<PlanPojo> getAvailablePlans(String login) {
+        CredentialsPojo credentialsPojo = new CredentialsPojo();
+        credentialsPojo.login = login;
+        AccountTokenPojo customerToken = post("authenticate", JsonMapper.toJson(credentialsPojo, true), AccountTokenPojo.class, null);
+
+        return (Arrays.stream(Objects.requireNonNull(get("available_plans", "", PlanPojo[].class, customerToken, null))).collect(Collectors.toList()));
+    }
+
+    public List<SubscriptionPojo> getSubscriptions(AccountTokenPojo adminToken) {
+        Map<String, String> queryParams = new HashMap<>();
+        queryParams.put("customer_id", adminToken.id.toString());
+        return Arrays.stream(Objects.requireNonNull(get("subscriptions", "", SubscriptionPojo[].class, adminToken, queryParams))).collect(Collectors.toList());
     }
 
     private static <R> R post(String path, String body, Class<R> responseType, AccountTokenPojo accountToken) {
         // Лабораторная 3: Добавить обработку Responses и Errors. Выводите их в лог.
         // Подумайте почему в filter нет Response чтобы можно было удобно его сохранить.
+
+        Logger.debug("Send POST request to " + path);
+        Logger.debug("POST request body: " + body);
+
         Invocation.Builder request = client
                 .target(REST_URI)
                 .path(path)
@@ -58,18 +130,111 @@ public class RestClient {
             request.header("Authorization", "Bearer " + accountToken.token);
         }
 
-        String response = request.post(Entity.entity(body, MediaType.APPLICATION_JSON), String.class);
+        Response response = request.post(Entity.entity(body, MediaType.APPLICATION_JSON), Response.class);
 
-        return JsonMapper.fromJson(response, responseType);
+        if (response.getStatus() != 200) {
+            Logger.debug("Response status: " + response.getStatus() + " \nReason:" + response.getStatusInfo().getReasonPhrase());
+            return null;
+        }
+
+        Logger.debug("Response status: " + response.getStatus());
+
+        if (!response.hasEntity()) {
+            Logger.debug("Empty response body");
+            return null;
+        }
+
+        String responseBody = response.readEntity(String.class);
+        Logger.debug("Response body: " + responseBody);
+        return JsonMapper.fromJson(responseBody, responseType);
+    }
+
+    private static <R> R get(String path, String body, Class<R> responseType, AccountTokenPojo accountToken, Map<String, String> queryParams) {
+        Logger.debug("Send GET request to /" + path);
+        Logger.debug("GET request body: " + body);
+
+        WebTarget webTarget = client.target(REST_URI).path(path);
+
+        if (queryParams != null) {
+            Logger.debug("GET request query parameters: " + queryParams.toString());
+            for (Map.Entry<String, String> entry : queryParams.entrySet()) {
+                webTarget = webTarget.queryParam(entry.getKey(), entry.getValue());
+            }
+        }
+        else{
+            Logger.warn("GET request has no parameters");
+        }
+
+        Invocation.Builder request = webTarget
+                .request(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON);
+
+        if (accountToken != null) {
+            request.header("Authorization", "Bearer " + accountToken.token);
+        }
+
+        Response response = request.get(Response.class);
+
+        if (response.getStatus() != 200) {
+            Logger.debug("Response status: " + response.getStatus() + " \nReason:" + response.getStatusInfo().getReasonPhrase());
+            return null;
+        }
+
+        Logger.debug("Response status: " + response.getStatus());
+
+        if (!response.hasEntity()) {
+            Logger.debug("Empty response body");
+            return null;
+        }
+
+        String responseBody = response.readEntity(String.class);
+        Logger.debug("Response body: " + responseBody);
+        return JsonMapper.fromJson(responseBody, responseType);
+    }
+
+    private static <R> R delete(String path, String body, Class<R> responseType, AccountTokenPojo accountToken) {
+        Logger.debug("Send DELETE request to " + path);
+        Logger.debug("DELETE request body: " + body);
+
+        Invocation.Builder request = client
+                .target(REST_URI)
+                .path(path)
+                .request(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON);
+
+        if (accountToken != null) {
+            request.header("Authorization", "Bearer " + accountToken.token);
+        }
+
+        Response response = request.delete(Response.class);
+
+        if (response.getStatus() != 200) {
+            Logger.debug("Response status: " + response.getStatus() + " \nReason:" + response.getStatusInfo().getReasonPhrase());
+            return null;
+        }
+
+        Logger.debug("Response status: " + response.getStatus());
+
+        if (!response.hasEntity()) {
+            Logger.debug("Empty response body");
+            return null;
+        }
+
+        String responseBody = response.readEntity(String.class);
+        Logger.debug("Response body: " + responseBody);
+        return JsonMapper.fromJson(responseBody, responseType);
     }
 
     private static class RestClientLogFilter implements ClientRequestFilter {
         @Override
         public void filter(ClientRequestContext requestContext) {
-            Logger.debug(requestContext.getEntity().toString());
-
+            if (requestContext.hasEntity()) {
+                Logger.debug(requestContext.getEntity().toString());
+            }
             // Лабораторная 3: разобраться как работает данный фильтр
             // и добавить логирование METHOD и HEADERS.
+            Logger.debug("METHOD: " + requestContext.getMethod());
+            Logger.debug("HEADERS: " + requestContext.getHeaders());
         }
     }
 }
