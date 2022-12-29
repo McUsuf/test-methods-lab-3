@@ -10,7 +10,6 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 
 import java.io.Closeable;
 import java.io.File;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -18,6 +17,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class Browser implements Closeable {
     private WebDriver webDriver;
+    private WebDriverWait webDriverWait;
 
     public Browser() {
         // create web driver.
@@ -40,7 +40,7 @@ public class Browser implements Closeable {
                 // Для того чтобы подобрать нужный chromedriver, необходимо посмотреть версию браузера Chrome
                 // на системе, на которой будут запускаться тесты и скачать соотвествующий ей chromedriver с сайта:
                 // https://chromedriver.chromium.org/downloads
-                System.setProperty("webdriver.chrome.driver", "C:/Tools/chromedriver/chromedriver.exe");
+                System.setProperty("webdriver.chrome.driver", "C:/Tools/chromedriver.exe");
                 chromeOptions.setHeadless(Boolean.parseBoolean(System.getProperty("headless")));
                 webDriver = new ChromeDriver(chromeOptions);
             } else {
@@ -57,7 +57,8 @@ public class Browser implements Closeable {
                 throw new RuntimeException();
             }
 
-            webDriver.manage().timeouts().pageLoadTimeout(60, TimeUnit.SECONDS);
+            webDriver.manage().timeouts().pageLoadTimeout(90, TimeUnit.SECONDS);
+            webDriverWait = new WebDriverWait(webDriver, 90);
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         }
@@ -83,6 +84,7 @@ public class Browser implements Closeable {
     public Browser click(By element) {
         makeScreenshot();
         webDriver.findElement(element).click();
+        makeScreenshot();
         return this;
     }
 
@@ -99,16 +101,37 @@ public class Browser implements Closeable {
 
     public boolean isElementPresent(By element) {
         makeScreenshot();
-        return webDriver.findElements(element).size() != 0;
+        try {
+            webDriver.findElement(element);
+            return true;
+        } catch (NoSuchElementException exception) {
+            return false;
+        }
     }
 
     @Attachment(value = "Page screenshot", type = "image/png")
     public byte[] makeScreenshot() {
-        return ((TakesScreenshot)webDriver).getScreenshotAs(OutputType.BYTES);
+        webDriver.manage().window().maximize();
+        return ((TakesScreenshot) webDriver).getScreenshotAs(OutputType.BYTES);
     }
 
     @Override
     public void close() {
         webDriver.close();
+    }
+
+    public void waitElementToBecomeInvisible(By element) {
+        WebDriverWait wait = new WebDriverWait(webDriver, 60);
+        wait.until(ExpectedConditions.invisibilityOfElementLocated(element));
+    }
+
+    public Boolean waitPage() {
+        return webDriverWait.until(webDriver -> ((JavascriptExecutor) webDriver)
+                .executeScript("return document.readyState").equals("complete"));
+    }
+
+    public Boolean containsTitle(String title) {
+        System.out.println(webDriver.getCurrentUrl());
+        return webDriver.getCurrentUrl() != null && webDriver.getCurrentUrl().contains(title);
     }
 }

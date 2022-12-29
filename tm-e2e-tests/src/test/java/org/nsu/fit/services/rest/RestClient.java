@@ -113,6 +113,9 @@ public class RestClient {
         return Arrays.stream(Objects.requireNonNull(get("subscriptions", "", SubscriptionPojo[].class, adminToken, queryParams))).collect(Collectors.toList());
     }
 
+    public void deletePlanPojo(PlanPojo planPojo, AccountTokenPojo adminToken) {
+        delete("plans/" + planPojo.id, "", void.class, adminToken);
+    }
     private static <R> R post(String path, String body, Class<R> responseType, AccountTokenPojo accountToken) {
         // Лабораторная 3: Добавить обработку Responses и Errors. Выводите их в лог.
         // Подумайте почему в filter нет Response чтобы можно было удобно его сохранить.

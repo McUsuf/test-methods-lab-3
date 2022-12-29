@@ -2,7 +2,16 @@
 <suite verbose="1" name="UI Tests" annotations="JDK" parallel="tests">
     <test name="AcceptanceTest">
         <classes>
-            <class name="org.nsu.fit.tests.ui.CreateCustomerTest" />
+            <class name="org.nsu.fit.tests.ui.customer.CreateCustomerTest" />
+            <class name="org.nsu.fit.tests.ui.customer.CancelCustomerCreateTest" />
+            <class name="org.nsu.fit.tests.ui.customer.DeleteCreatedCustomerTest" />
+            <class name="org.nsu.fit.tests.ui.customer.TopUpCustomerBalanceTest" />
+        </classes>
+    </test>
+    <test name="AuthenticateTest">
+        <classes>
+            <class name="org.nsu.fit.tests.ui.auth.AuthAsCustomerTest"/>
+            <class name="org.nsu.fit.tests.ui.auth.AuthAsAdminTest"/>
         </classes>
     </test>
 </suite>
